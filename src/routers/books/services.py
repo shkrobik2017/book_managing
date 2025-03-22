@@ -120,6 +120,7 @@ async def validate_and_save_books_to_db(file: UploadFile) -> Dict[str, Any]:
     Raises:
         HTTPException: If the file format is unsupported or file processing fails.
     """
+
     if file.filename.endswith(".json"):
         books = await import_from_json(file)
     elif file.filename.endswith(".csv"):
@@ -151,6 +152,11 @@ async def validate_and_save_books_to_db(file: UploadFile) -> Dict[str, Any]:
             elif ex.status_code == 404 and ex.detail == "Author not found":
                 not_found_authors.append(book)
             continue
+        except Exception as ex:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"Internal Error": f"Something went wrong during book import: {ex}"}
+            )
 
     if valid_books:
         await bulk_create_books_in_db(valid_books=valid_books)
@@ -160,6 +166,7 @@ async def validate_and_save_books_to_db(file: UploadFile) -> Dict[str, Any]:
         "Books already exist": exist_books,
         "Authors not found": not_found_authors
     }
+
 
 
 async def get_books() -> List[BookModel_Pydantic]:
@@ -198,6 +205,8 @@ async def get_book_by_id(book_id: int) -> BookModel_Pydantic:
                 detail="Book not found"
             )
         return BookModel_Pydantic.model_validate(book), AuthorModel_Pydantic.model_validate(book.author)
+    except HTTPException as ex:
+        raise ex
     except Exception as ex:
         print(ex)
         raise HTTPException(
